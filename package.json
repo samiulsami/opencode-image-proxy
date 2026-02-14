@@ -22,7 +22,8 @@
     "@opencode-ai/plugin": ">=0.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "opencode",

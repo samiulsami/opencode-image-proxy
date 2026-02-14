@@ -1,37 +1,108 @@
 # @sami/opencode-zai-vision
 
-OpenCode plugin that enables image pasting for ZAI models by converting images to temp files and instructing the LLM to use vision MCP tools.
+OpenCode plugin that enables image support for non-multimodal ZAI models by converting pasted images to temp files and instructing the LLM to use ZAI vision MCP tools.
 
 ## Installation
 
-Add to your `opencode.json`:
-
+### From npm
 ```json
 {
   "plugin": ["@sami/opencode-zai-vision@latest"]
 }
 ```
 
+### Local Development
+```json
+{
+  "plugin": ["file:///path/to/opencode-zai-vision/dist/index.js"]
+}
+```
+
 ## How It Works
 
-1. When you paste an image, it's stored as a base64 data URL
-2. Before sending to ZAI, this plugin:
-   - Decodes the image and saves it to a temp file
-   - Replaces the image with a text reference: `[Image at: /tmp/zai-vision-xxx.png]`
-3. Adds system instructions telling the LLM which vision MCP tool to use
-4. Temp files are cleaned up when the process exits
+1. Detects when a configured model is in use
+2. On image paste, decodes base64 data and saves to `/tmp/zai-vision/`
+3. Replaces image with configurable text reference
+4. Appends vision MCP instructions to system prompt
+5. Cleans up temp files on process exit
 
-## Available Vision Tools
+## Configuration
 
-The plugin instructs the LLM about these tools:
+Create `~/.config/opencode/opencode-zai-vision.json`:
 
-- `zai-vision_analyze_image` - general image analysis
-- `zai-vision_extract_text_from_screenshot` - extract text from screenshots
-- `zai-vision_diagnose_error_screenshot` - analyze error messages
-- `zai-vision_understand_technical_diagram` - analyze diagrams
-- `zai-vision_analyze_data_visualization` - analyze charts/graphs
+```json
+{
+  "models": [
+    "zai-coding-plan/custom-model"
+  ],
+  "imagePrefix": "[Image at: {path}]",
+  "instructions": "When you see [Image at: /path], use zai-vision_analyze_image to analyze the image."
+}
+```
 
-## Requirements
+| Field | Type | Description |
+|-------|------|-------------|
+| `models` | `string[]` | Additional models to enable vision for (merged with defaults) |
+| `imagePrefix` | `string` | Text template replacing images; `{path}` is the temp file path |
+| `instructions` | `string` | System prompt appended when images are present |
 
-- ZAI provider configured in opencode
-- zai-vision MCP tools available
+### Default Models
+
+The plugin activates for these models by default:
+
+```
+zai-coding-plan/glm-4.5
+zai-coding-plan/glm-4.5-air
+zai-coding-plan/glm-4.5-flash
+zai-coding-plan/glm-4.5v
+zai-coding-plan/glm-4.6
+zai-coding-plan/glm-4.6v
+zai-coding-plan/glm-4.7
+zai-coding-plan/glm-4.7-flash
+zai-coding-plan/glm-5
+```
+
+User-configured models are **added** to this list, not replaced.
+
+### Required MCP Tools
+
+Ensure `zai-vision` MCP server is configured in your `opencode.json`:
+
+```json
+{
+  "mcp": {
+    "zai-vision": {
+      "type": "local",
+      "command": ["sh", "-c", "Z_AI_API_KEY=your-key npx -y @z_ai/mcp-server"]
+    }
+  }
+}
+```
+
+## Vision Tools Reference
+
+| Tool | Use Case |
+|------|----------|
+| `zai-vision_analyze_image` | General image analysis |
+| `zai-vision_extract_text_from_screenshot` | OCR / text extraction |
+| `zai-vision_diagnose_error_screenshot` | Error message analysis |
+| `zai-vision_understand_technical_diagram` | Architecture/flowcharts |
+| `zai-vision_analyze_data_visualization` | Charts/graphs/dashboards |
+
+## Limitations
+
+- Only processes images with `data:` URL scheme (pasted images)
+- Does not handle images from file paths or remote URLs
+- Temp files persist until process exit
+- Maximum image size depends on MCP server limits
+
+## Building
+
+```bash
+npm install
+npm run build
+```
+
+## License
+
+MIT
