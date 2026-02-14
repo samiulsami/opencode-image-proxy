@@ -1,0 +1,35 @@
+{
+  "name": "@sami/opencode-zai-vision",
+  "version": "1.0.0",
+  "description": "OpenCode plugin for ZAI vision - converts pasted images to temp files for MCP vision tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=0.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "zai",
+    "vision",
+    "image"
+  ],
+  "license": "MIT"
+}
