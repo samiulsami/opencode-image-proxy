@@ -41,43 +41,60 @@ interface Part {
   [key: string]: unknown
 }
 
+type UserConfig = Partial<{
+  imageIncapableModels: unknown
+  imageReaderModel: { providerID?: unknown; modelID?: unknown }
+  analysisPrompt: unknown
+}>
+
 const sessionsNeedingAnalysis = new Set<string>()
 let config: Config | null = null
 let pluginContext: PluginInput | null = null
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0
+}
+
 function getConfigDir(): string {
   const xdgConfig = process.env.XDG_CONFIG_HOME
-  if (xdgConfig) {
-    return join(xdgConfig, "opencode")
+  return join(xdgConfig ?? join(homedir(), ".config"), "opencode")
+}
+
+function getDefaultConfig(): Config {
+  return {
+    imageIncapableModels: DEFAULT_IMAGE_INCAPABLE_MODELS,
+    imageReaderModel: { providerID: "opencode", modelID: "kimi-k2.5-free" },
+    analysisPrompt: DEFAULT_ANALYSIS_PROMPT,
   }
-  return join(homedir(), ".config", "opencode")
+}
+
+function normalizeStringArray(value: unknown, fallback: string[]): string[] {
+  const raw = Array.isArray(value) ? value : fallback
+  return raw.filter(isNonEmptyString).map((entry) => entry.trim())
+}
+
+function normalizeReaderModel(value: unknown, fallback: Config["imageReaderModel"]): Config["imageReaderModel"] {
+  if (!value || typeof value !== "object") return fallback
+  const candidate = value as { providerID?: unknown; modelID?: unknown }
+  const providerID = isNonEmptyString(candidate.providerID) ? candidate.providerID.trim() : fallback.providerID
+  const modelID = isNonEmptyString(candidate.modelID) ? candidate.modelID.trim() : fallback.modelID
+  return { providerID, modelID }
 }
 
 function loadConfig(): Config {
   const configPath = join(getConfigDir(), "opencode-image-proxy.json")
-  const defaultConfig: Config = {
-    imageIncapableModels: DEFAULT_IMAGE_INCAPABLE_MODELS,
-    imageReaderModel: { providerID: "github-copilot", modelID: "gpt-5-mini" },
-    analysisPrompt: DEFAULT_ANALYSIS_PROMPT,
-  }
+  const defaultConfig = getDefaultConfig()
 
   if (!existsSync(configPath)) {
     return defaultConfig
   }
 
   try {
-    const userConfig = JSON.parse(readFileSync(configPath, "utf-8"))
+    const userConfig = JSON.parse(readFileSync(configPath, "utf-8")) as UserConfig
     return {
-      imageIncapableModels: Array.isArray(userConfig.imageIncapableModels)
-        ? userConfig.imageIncapableModels.filter((m: unknown) => typeof m === "string")
-        : DEFAULT_IMAGE_INCAPABLE_MODELS,
-      imageReaderModel: userConfig.imageReaderModel
-        ? {
-            providerID: userConfig.imageReaderModel.providerID ?? defaultConfig.imageReaderModel.providerID,
-            modelID: userConfig.imageReaderModel.modelID ?? defaultConfig.imageReaderModel.modelID,
-          }
-        : defaultConfig.imageReaderModel,
-      analysisPrompt: typeof userConfig.analysisPrompt === "string" ? userConfig.analysisPrompt : DEFAULT_ANALYSIS_PROMPT,
+      imageIncapableModels: normalizeStringArray(userConfig.imageIncapableModels, defaultConfig.imageIncapableModels),
+      imageReaderModel: normalizeReaderModel(userConfig.imageReaderModel, defaultConfig.imageReaderModel),
+      analysisPrompt: isNonEmptyString(userConfig.analysisPrompt) ? userConfig.analysisPrompt : defaultConfig.analysisPrompt,
     }
   } catch {
     return defaultConfig
@@ -89,24 +106,19 @@ function isImageIncapableModel(providerID?: string, modelID?: string): boolean {
   return (config ??= loadConfig()).imageIncapableModels.includes(`${providerID}/${modelID}`)
 }
 
-function decodeDataUrl(url: string): { data: Buffer; mime: string } | null {
-  const match = url.match(/^data:([^;,]+)(?:;[^,]+)?;base64,(.+)$/)
-  if (!match) return null
-  try {
-    const data = Buffer.from(match[2], "base64")
-    return data.length ? { data, mime: match[1].toLowerCase() } : null
-  } catch {
-    return null
-  }
+function getMimeFromDataUrl(url: string): string | null {
+  const match = url.match(/^data:([^;,]+)(?:;[^,]+)?;base64,/)
+  return match ? match[1].toLowerCase() : null
 }
 
-async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string): Promise<string> {
+async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string, mime?: string): Promise<string> {
   if (!pluginContext) {
     return "[Image analysis failed: plugin context not initialized]"
   }
 
   const cfg = config ??= loadConfig()
   const { client } = pluginContext
+  const resolvedMime = mime ?? getMimeFromDataUrl(imageDataUrl) ?? "image/png"
 
   try {
     const session = await client.session.create({})
@@ -122,15 +134,12 @@ async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string):
         model: cfg.imageReaderModel,
         system: cfg.analysisPrompt,
         parts: [
-          {
-            type: "text",
-            text: "What do you see in this image?",
-          },
+          { type: "text", text: "What do you see in this image?" },
           {
             type: "file",
             url: imageDataUrl,
             filename: filename ?? "image.png",
-            mime: "image/png",
+            mime: resolvedMime,
           },
         ],
       },
@@ -142,8 +151,7 @@ async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string):
       return "[Image analysis failed: no response from vision model]"
     }
 
-    const parts = response.data.parts ?? []
-    const textParts = parts.filter((p: Part) => p.type === "text" && p.text)
+    const textParts = (response.data.parts ?? []).filter((p: Part) => p.type === "text" && p.text)
     if (textParts.length === 0) {
       return "[Image analysis failed: no text in response]"
     }
@@ -168,7 +176,10 @@ export const OpencodeVisionPlugin: Plugin = async (ctx) => {
       }
     },
 
-    "experimental.chat.messages.transform": async (_: unknown, output: { messages: { info?: { sessionID?: string; role?: string }; parts: Part[] }[] }) => {
+    "experimental.chat.messages.transform": async (
+      _: unknown,
+      output: { messages: { info?: { sessionID?: string; role?: string }; parts: Part[] }[] }
+    ) => {
       if (!output?.messages) return
 
       let lastUserMsgIdx = -1
@@ -189,16 +200,13 @@ export const OpencodeVisionPlugin: Plugin = async (ctx) => {
       const imageAnalysisPromises: Promise<{ index: number; analysis: string; filename?: string }>[] = []
 
       for (let i = 0; i < msg.parts.length; i++) {
-        const p = msg.parts[i]
-        if (p.type === "file" && p.mime?.startsWith("image/") && p.url) {
-          const index = i
-          const filename = p.filename
-          const imageUrl = p.url
+        const part = msg.parts[i]
+        if (part.type === "file" && part.mime?.startsWith("image/") && part.url) {
           imageAnalysisPromises.push(
-            analyzeImageViaOpencode(imageUrl, filename).then((analysis) => ({
-              index,
+            analyzeImageViaOpencode(part.url, part.filename, part.mime).then((analysis) => ({
+              index: i,
               analysis,
-              filename,
+              filename: part.filename,
             }))
           )
         }
@@ -209,13 +217,12 @@ export const OpencodeVisionPlugin: Plugin = async (ctx) => {
       const results = await Promise.all(imageAnalysisPromises)
 
       for (const { index, analysis, filename } of results) {
-        const p = msg.parts[index]
-        const displayName = filename ?? `image.${p.mime?.split("/")[1] ?? "bin"}`
-        const textPart: Part = {
+        const part = msg.parts[index]
+        const displayName = filename ?? `image.${part.mime?.split("/")[1] ?? "bin"}`
+        msg.parts[index] = {
           type: "text",
           text: `${IMAGE_WRAPPER_PREFIX}${displayName}${IMAGE_WRAPPER_SUFFIX}\n${analysis}`,
         }
-        msg.parts[index] = textPart
       }
     },
   }

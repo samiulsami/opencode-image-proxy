@@ -5,7 +5,7 @@ OpenCode plugin that proxies images through a vision-capable model, enabling ima
 ## Installation
 
 ### From npm
-Add this to opencode config (typically in : ~/.config/opencode/opencode.json)
+Add this to opencode config (typically in: `~/.config/opencode/opencode.json`)
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
@@ -25,7 +25,7 @@ All model calls use OpenCode's existing authentication - no separate API keys ne
 
 ## Configuration
 
-Create `~/.config/opencode/opencode-image-proxy.json`
+Create `~/.config/opencode/opencode-image-proxy.json` (or `$XDG_CONFIG_HOME/opencode/opencode-image-proxy.json`)
 
 <i> To see available models, run: ```opencode models``` </i>
 
