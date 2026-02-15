@@ -1,7 +1,7 @@
 {
-  "name": "@sami/opencode-zai-vision",
+  "name": "@sami/opencode-image-proxy",
   "version": "1.0.0",
-  "description": "OpenCode plugin for ZAI vision - converts pasted images to temp files for MCP vision tools",
+  "description": "OpenCode plugin that proxies images through a vision-capable model, enabling image-incapable models to \"see\"",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,9 +28,9 @@
   "keywords": [
     "opencode",
     "plugin",
-    "zai",
     "vision",
-    "image"
+    "image",
+    "multimodal"
   ],
   "license": "MIT"
 }
