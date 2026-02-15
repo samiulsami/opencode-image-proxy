@@ -10,7 +10,7 @@ Add this to opencode config (typically in : ~/.config/opencode/opencode.json)
 {
   "$schema": "https://opencode.ai/config.json",
     "plugin": [
-      "@sami/opencode-image-proxy@latest"
+      "@sami7786/opencode-image-proxy@latest"
     ]
 }
 ```
