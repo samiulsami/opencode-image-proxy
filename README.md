@@ -1,26 +1,23 @@
-# @sami/opencode-image-proxy
+# opencode-image-proxy
 
 OpenCode plugin that proxies images through a vision-capable model, enabling image-incapable models to "see" pasted images.
 
 ## Installation
 
 ### From npm
+Add this to opencode config (typically in : ~/.config/opencode/opencode.json)
 ```json
 {
-  "plugin": ["@sami/opencode-image-proxy@latest"]
-}
-```
-
-### Local Development
-```json
-{
-  "plugin": ["file:///path/to/opencode-image-proxy/dist/index.js"]
+  "$schema": "https://opencode.ai/config.json",
+    "plugin": [
+      "@sami/opencode-image-proxy@latest"
+    ]
 }
 ```
 
 ## How It Works
 
-1. Detects if the current model is image-incapable (from the configured list)
+1. Checks if the current model is in the "imageIncapableModels" list as configured
 2. **If image-incapable**: Automatically sends images to a vision-capable model for analysis, then replaces the image with a text description
 3. **If image-capable**: Images pass through natively with no transformation
 
@@ -28,56 +25,35 @@ All model calls use OpenCode's existing authentication - no separate API keys ne
 
 ## Configuration
 
-Create `$XDG_CONFIG_HOME/opencode/opencode-image-proxy.json` (or `~/.config/opencode/opencode-image-proxy.json` if XDG_CONFIG_HOME is not set):
+Create `~/.config/opencode/opencode-image-proxy.json`
 
+<i> To see available models, run: ```opencode models``` </i>
+
+default config:
 ```json
 {
-  "imageIncapableModels": ["some-provider/some-model"],
+  "imageIncapableModels": [
+    "zai-coding-plan/glm-4.5",
+    "zai-coding-plan/glm-4.5-air",
+    "zai-coding-plan/glm-4.5-flash",
+    "zai-coding-plan/glm-4.5v",
+    "zai-coding-plan/glm-4.6",
+    "zai-coding-plan/glm-4.6v",
+    "zai-coding-plan/glm-4.7",
+    "zai-coding-plan/glm-4.7-flash",
+    "zai-coding-plan/glm-5"
+  ],
   "imageReaderModel": {
-    "providerID": "github-copilot",
-    "modelID": "gpt-5-mini"
-  }
+    "providerID": "opencode",
+    "modelID": "kimi-k2.5-free"
+  },
+  "analysisPrompt": "The user has pasted an image into their chat. Describe what you see..."
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `imageIncapableModels` | `string[]` | (see below) | Models that can't process images (replaces defaults if set) |
-| `imageReaderModel` | `{ providerID, modelID }` | `{ providerID: "github-copilot", modelID: "gpt-5-mini" }` | Vision model to proxy images through |
-| `analysisPrompt` | `string` | (see source) | System prompt for image analysis |
-
-### Default Image-Incapable Models
-
-These models are detected as image-incapable by default:
-
-```json
-[
-  "zai-coding-plan/glm-4.5",
-  "zai-coding-plan/glm-4.5-air",
-  "zai-coding-plan/glm-4.5-flash",
-  "zai-coding-plan/glm-4.5v",
-  "zai-coding-plan/glm-4.6",
-  "zai-coding-plan/glm-4.6v",
-  "zai-coding-plan/glm-4.7",
-  "zai-coding-plan/glm-4.7-flash",
-  "zai-coding-plan/glm-5"
-]
-```
-
-**Note:** Setting `imageIncapableModels` in config replaces these defaults entirely.
-
-### Default Image Reader Model
-
-Uses `github-copilot/gpt-5-mini` by default. Configure any vision-capable model:
-
-```json
-{
-  "imageReaderModel": {
-    "providerID": "anthropic",
-    "modelID": "claude-sonnet-4-20250514"
-  }
-}
-```
+- `imageIncapableModels` — Models that can't process images. Setting this replaces the defaults entirely.
+- `imageReaderModel` — Any vision-capable model in your OpenCode setup (uses existing auth).
+- `analysisPrompt` — System prompt for image analysis (optional, has sensible default).
 
 ### Behavior
 
