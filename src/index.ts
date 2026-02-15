@@ -155,7 +155,7 @@ async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string):
   }
 }
 
-export const ZaiVisionPlugin: Plugin = async (ctx) => {
+export const OpencodeVisionPlugin: Plugin = async (ctx) => {
   pluginContext = ctx
   config = loadConfig()
 
@@ -221,4 +221,4 @@ export const ZaiVisionPlugin: Plugin = async (ctx) => {
   }
 }
 
-export default ZaiVisionPlugin
+export default OpencodeVisionPlugin
