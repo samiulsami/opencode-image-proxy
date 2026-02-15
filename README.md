@@ -1,6 +1,6 @@
 # @sami/opencode-zai-vision
 
-OpenCode plugin that enables image support for non-multimodal ZAI models by converting pasted images to temp files and instructing the LLM to use ZAI vision MCP tools.
+OpenCode plugin that allows you to directly paste images, and have z.ai models automatically parse them using the z.ai vision mcp.
 
 ## Installation
 
@@ -28,23 +28,34 @@ OpenCode plugin that enables image support for non-multimodal ZAI models by conv
 
 ## Configuration
 
-Create `~/.config/opencode/opencode-zai-vision.json`:
+Create `~/.config/opencode/opencode-zai-vision.json` (optional):
 
 ```json
 {
   "models": [
     "zai-coding-plan/custom-model"
-  ],
-  "imagePrefix": "[Image at: {path}]",
-  "instructions": "When you see [Image at: /path], use zai-vision_analyze_image to analyze the image."
+  ]
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `models` | `string[]` | Additional models to enable vision for (merged with defaults) |
-| `imagePrefix` | `string` | Text template replacing images; `{path}` is the temp file path |
+| `models` | `string[]` | Additional models to enable vision for (added to defaults) |
+| `imagePrefix` | `string` | Text template replacing images; `{path}` → temp file path |
 | `instructions` | `string` | System prompt appended when images are present |
+
+### Defaults
+
+If not configured, these defaults are used:
+
+```json
+{
+  "imagePrefix": "[Image at: {path}]",
+  "instructions": "When you see [Image at: /path], use the appropriate zai-vision MCP tool:\n- zai-vision_analyze_image: general analysis\n- zai-vision_extract_text_from_screenshot: text from screenshots\n- zai-vision_diagnose_error_screenshot: error messages\n- zai-vision_understand_technical_diagram: diagrams\n- zai-vision_analyze_data_visualization: charts/graphs"
+}
+```
+
+**Note:** User-provided `imagePrefix` and `instructions` **replace** the defaults entirely, they are not merged. Only `models` are additive.
 
 ### Default Models
 
