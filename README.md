@@ -51,9 +51,9 @@ default config:
 }
 ```
 
-- `imageIncapableModels` — Models that can't process images. Setting this replaces the defaults entirely.
-- `imageReaderModel` — Any vision-capable model in your OpenCode setup (uses existing auth).
-- `analysisPrompt` — System prompt for image analysis (optional, has sensible default).
+- `imageIncapableModels` — Models that you want to enable the proxy for.
+- `imageReaderModel` — Any vision-capable model in your OpenCode setup.
+- `analysisPrompt` — System prompt for image analysis.
 
 ### Behavior
 
