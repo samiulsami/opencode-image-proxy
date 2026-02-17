@@ -36,9 +36,7 @@ default config:
     "zai-coding-plan/glm-4.5",
     "zai-coding-plan/glm-4.5-air",
     "zai-coding-plan/glm-4.5-flash",
-    "zai-coding-plan/glm-4.5v",
     "zai-coding-plan/glm-4.6",
-    "zai-coding-plan/glm-4.6v",
     "zai-coding-plan/glm-4.7",
     "zai-coding-plan/glm-4.7-flash",
     "zai-coding-plan/glm-5"

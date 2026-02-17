@@ -7,9 +7,7 @@ const DEFAULT_IMAGE_INCAPABLE_MODELS = [
   "zai-coding-plan/glm-4.5",
   "zai-coding-plan/glm-4.5-air",
   "zai-coding-plan/glm-4.5-flash",
-  "zai-coding-plan/glm-4.5v",
   "zai-coding-plan/glm-4.6",
-  "zai-coding-plan/glm-4.6v",
   "zai-coding-plan/glm-4.7",
   "zai-coding-plan/glm-4.7-flash",
   "zai-coding-plan/glm-5",
@@ -47,7 +45,6 @@ type UserConfig = Partial<{
   analysisPrompt: unknown
 }>
 
-const sessionsNeedingAnalysis = new Set<string>()
 let config: Config | null = null
 let pluginContext: PluginInput | null = null
 
@@ -168,39 +165,17 @@ export const OpencodeVisionPlugin: Plugin = async (ctx) => {
   config = loadConfig()
 
   return {
-    "chat.message": async (input: { sessionID: string; model?: { providerID?: string; modelID?: string } }) => {
-      if (isImageIncapableModel(input.model?.providerID, input.model?.modelID)) {
-        sessionsNeedingAnalysis.add(input.sessionID)
-      } else if (input.model?.providerID || input.model?.modelID) {
-        sessionsNeedingAnalysis.delete(input.sessionID)
-      }
-    },
-
-    "experimental.chat.messages.transform": async (
-      _: unknown,
-      output: { messages: { info?: { sessionID?: string; role?: string }; parts: Part[] }[] }
+    "chat.message": async (
+      input: { sessionID: string; model?: { providerID?: string; modelID?: string } },
+      output: { parts: Part[] }
     ) => {
-      if (!output?.messages) return
-
-      let lastUserMsgIdx = -1
-      for (let i = output.messages.length - 1; i >= 0; i--) {
-        if (output.messages[i].info?.role === "user") {
-          lastUserMsgIdx = i
-          break
-        }
-      }
-      if (lastUserMsgIdx === -1) return
-
-      const msg = output.messages[lastUserMsgIdx]
-      if (!msg?.parts) return
-
-      const sid = msg.info?.sessionID
-      if (!sid || !sessionsNeedingAnalysis.has(sid)) return
+      if (!isImageIncapableModel(input.model?.providerID, input.model?.modelID)) return
+      if (!output.parts?.length) return
 
       const imageAnalysisPromises: Promise<{ index: number; analysis: string; filename?: string }>[] = []
 
-      for (let i = 0; i < msg.parts.length; i++) {
-        const part = msg.parts[i]
+      for (let i = 0; i < output.parts.length; i++) {
+        const part = output.parts[i]
         if (part.type === "file" && part.mime?.startsWith("image/") && part.url) {
           imageAnalysisPromises.push(
             analyzeImageViaOpencode(part.url, part.filename, part.mime).then((analysis) => ({
@@ -217,12 +192,15 @@ export const OpencodeVisionPlugin: Plugin = async (ctx) => {
       const results = await Promise.all(imageAnalysisPromises)
 
       for (const { index, analysis, filename } of results) {
-        const part = msg.parts[index]
+        const part = output.parts[index]
         const displayName = filename ?? `image.${part.mime?.split("/")[1] ?? "bin"}`
-        msg.parts[index] = {
+        output.parts[index] = {
+          ...part,
           type: "text",
           text: `${IMAGE_WRAPPER_PREFIX}${displayName}${IMAGE_WRAPPER_SUFFIX}\n${analysis}`,
-        }
+        } as Part
+        delete (output.parts[index] as Part).url
+        delete (output.parts[index] as Part).mime
       }
     },
   }
