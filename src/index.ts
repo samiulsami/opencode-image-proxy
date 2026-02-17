@@ -31,11 +31,14 @@ interface Config {
 }
 
 interface Part {
+  id?: string
   type: string
   mime?: string
   url?: string
   text?: string
   filename?: string
+  messageID?: string
+  sessionID?: string
   [key: string]: unknown
 }
 
@@ -47,6 +50,7 @@ type UserConfig = Partial<{
 
 let config: Config | null = null
 let pluginContext: PluginInput | null = null
+const pendingAnalyses = new Map<string, Promise<{ updatedPart: Part }>>()
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0
@@ -108,6 +112,10 @@ function getMimeFromDataUrl(url: string): string | null {
   return match ? match[1].toLowerCase() : null
 }
 
+function getPendingKey(sessionID: string, messageID: string, partID: string): string {
+  return `${sessionID}:${messageID}:${partID}`
+}
+
 async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string, mime?: string): Promise<string> {
   if (!pluginContext) {
     return "[Image analysis failed: plugin context not initialized]"
@@ -160,47 +168,82 @@ async function analyzeImageViaOpencode(imageDataUrl: string, filename?: string, 
   }
 }
 
+async function updatePartInDB(part: Part): Promise<void> {
+  if (!pluginContext || !part.id || !part.messageID || !part.sessionID) return
+
+  const { serverUrl } = pluginContext
+  const url = new URL(`/session/${part.sessionID}/message/${part.messageID}/part/${part.id}`, serverUrl)
+
+  try {
+    await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(part),
+    })
+  } catch {
+    // Silently fail - the transformation will still work for this request
+  }
+}
+
 export const OpencodeVisionPlugin: Plugin = async (ctx) => {
   pluginContext = ctx
   config = loadConfig()
 
   return {
     "chat.message": async (
-      input: { sessionID: string; model?: { providerID?: string; modelID?: string } },
+      input: { sessionID: string; messageID?: string; model?: { providerID?: string; modelID?: string } },
       output: { parts: Part[] }
     ) => {
       if (!isImageIncapableModel(input.model?.providerID, input.model?.modelID)) return
       if (!output.parts?.length) return
 
-      const imageAnalysisPromises: Promise<{ index: number; analysis: string; filename?: string }>[] = []
+      const messageID = input.messageID
+      if (!messageID) return
 
       for (let i = 0; i < output.parts.length; i++) {
         const part = output.parts[i]
-        if (part.type === "file" && part.mime?.startsWith("image/") && part.url) {
-          imageAnalysisPromises.push(
-            analyzeImageViaOpencode(part.url, part.filename, part.mime).then((analysis) => ({
-              index: i,
-              analysis,
-              filename: part.filename,
-            }))
-          )
+        if (part.type === "file" && part.mime?.startsWith("image/") && part.url && part.id) {
+          const key = getPendingKey(input.sessionID, messageID, part.id)
+          const promise = analyzeImageViaOpencode(part.url, part.filename, part.mime).then(async (analysis) => {
+            const displayName = part.filename ?? `image.${part.mime?.split("/")[1] ?? "bin"}`
+            const updatedPart: Part = {
+              ...part,
+              type: "text",
+              text: `${IMAGE_WRAPPER_PREFIX}${displayName}${IMAGE_WRAPPER_SUFFIX}\n${analysis}`,
+            }
+            delete updatedPart.url
+            delete updatedPart.mime
+            await updatePartInDB(updatedPart)
+            return { updatedPart }
+          })
+          pendingAnalyses.set(key, promise)
         }
       }
+    },
 
-      if (imageAnalysisPromises.length === 0) return
+    "experimental.chat.messages.transform": async (
+      _: unknown,
+      output: { messages: { info?: { id?: string; sessionID?: string }; parts: Part[] }[] }
+    ) => {
+      if (!output?.messages) return
 
-      const results = await Promise.all(imageAnalysisPromises)
+      for (const msg of output.messages) {
+        if (!msg.parts) continue
+        const sessionID = msg.info?.sessionID
+        const messageID = msg.info?.id
+        if (!sessionID || !messageID) continue
 
-      for (const { index, analysis, filename } of results) {
-        const part = output.parts[index]
-        const displayName = filename ?? `image.${part.mime?.split("/")[1] ?? "bin"}`
-        output.parts[index] = {
-          ...part,
-          type: "text",
-          text: `${IMAGE_WRAPPER_PREFIX}${displayName}${IMAGE_WRAPPER_SUFFIX}\n${analysis}`,
-        } as Part
-        delete (output.parts[index] as Part).url
-        delete (output.parts[index] as Part).mime
+        for (let i = 0; i < msg.parts.length; i++) {
+          const part = msg.parts[i]
+          if (part.type === "file" && part.mime?.startsWith("image/") && part.id) {
+            const key = getPendingKey(sessionID, messageID, part.id)
+            const pending = pendingAnalyses.get(key)
+            if (pending) {
+              const { updatedPart } = await pending
+              msg.parts[i] = updatedPart
+            }
+          }
+        }
       }
     },
   }

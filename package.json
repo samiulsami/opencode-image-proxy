@@ -1,6 +1,6 @@
 {
   "name": "@sami7786/opencode-image-proxy",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "OpenCode plugin that proxies images through a vision-capable model, enabling image-incapable models to \"see\"",
   "type": "module",
   "main": "dist/index.js",
