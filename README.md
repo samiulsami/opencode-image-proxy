@@ -45,7 +45,7 @@ default config:
     "providerID": "opencode",
     "modelID": "kimi-k2.5-free"
   },
-  "analysisPrompt": "The user has pasted an image into their chat. Describe what you see..."
+  "analysisPrompt": "The user has pasted an image into their chat. Describe what you see as if you are directly observing the image. Be thorough but concise. Include:\n- All visible elements (objects, text, UI elements, people, etc.)\n- Exact transcription of any text\n- The context and purpose of the image\n- Any relevant technical details\n\nDescribe it naturally, as if explaining to someone what you're looking at right now."
 }
 ```
 
